@@ -7,6 +7,7 @@ const categorySchema = require('../models/category');
 router.get('', async (req, res) => {
     await productSchema.find()
         .then( products => {
+            products = products.filter(product => product.active === true)
             res.status(201).json({data: products});
         })
         .catch( err => {
@@ -16,11 +17,23 @@ router.get('', async (req, res) => {
         })
 });
 
+router.get('/get-product/admin', validateToken, async (req, res) => {
+    await productSchema.find()
+        .then( products => {
+            res.status(201).json({data: products});
+        })
+        .catch( err => {
+            res.status(403).json(
+                { message: "Hubo un error al obtener productos" }
+            )
+        })
+});
 
 router.get('/get-products/filter/:ctg/:sc/:min/:max', async (req, res) => {
     if(req.params.ctg && req.params.sc !== '0'){
         await productSchema.find({category: req.params.ctg, sub_category: req.params.sc})
         .then( products => {
+            products = products.filter(product => product.active === true)
             if(req.params.min && req.params.max){
                 products = products.filter( prd => prd.price >= req.params.min && prd.price <= req.params.max);
                 return res.json({data: products});
@@ -40,6 +53,7 @@ router.get('/get-products/filter/:ctg/:sc/:min/:max', async (req, res) => {
     }else if (req.params.ctg){
         await productSchema.find({category: req.params.ctg})
             .then( products => {
+                products = products.filter(product => product.active === true)
                 if(req.params.min && req.params.max){
                     products = products.filter( prd => prd.price >= req.params.min && prd.price <= req.params.max);
                     return res.json({data: products});
@@ -65,6 +79,7 @@ router.get('/get-products/filter-search/:t', async (req, res) => {
     const productReturn = []
     await productSchema.find()
         .then( products => {
+            products = products.filter(product => product.active === true)
             for(let product of products){
                 const index = product.title.indexOf(req.params.t.toUpperCase())
                 let data = product.title.slice(index, (index + req.params.t.length));
@@ -98,6 +113,7 @@ router.get('/get-products/for/categories',  async (req, res ) => {
                 for(let category of categories){
                     productSchema.find({category: { _id : category._id } })
                         .then( products => {
+                            products = products.filter(product => product.active === true)
                             sendData.push({category, products})
                             if(sendData.length === categories.length){
                                 sendJson();
@@ -117,6 +133,7 @@ router.get('/get-products/for/categories',  async (req, res ) => {
 router.get('/last-products', async (req, res) => {
     await productSchema.find()
         .then( products => {
+            products = products.filter( product => product.active === true)
             if(products.length > 10){
                 products.splice(products.length - 4);
             }
@@ -132,12 +149,29 @@ router.get('/last-products', async (req, res) => {
 router.get('/:id', async (req, res) => {
     await productSchema.find({_id: req.params.id})
         .then( product => {
+            [product] = product
+            if(product){
+                res.status(201).json({data: product});
+            }else{
+                res.status(201).json({data: {}});
+            }
+        })
+        .catch( err => {
+            res.status(403).json({message: "Hubo un error al obtener productos"})
+        });
+});
+
+
+router.get('/admin/:id', async (req, res) => {
+    await productSchema.find({_id: req.params.id})
+        .then( product => {
             res.status(201).json({data: product});
         })
         .catch( err => {
             res.status(403).json({message: "Hubo un error al obtener productos"})
         });
 });
+
 
 router.post('/add', validateToken, async (req, res) => {
     const { title, sub_title, category, sub_category, size, price, thumbnail, images } = req.body.data.product;
@@ -180,7 +214,7 @@ router.put('/add/image/:id', validateToken, async (req, res) => {
         });
 })
 
-router.delete('/delete/image/:id', validateToken, async (req, res) => {
+router.post('/delete/image/:id', validateToken, async (req, res) => {
     await productSchema.findById({_id: req.params.id})
         .then( product => {
             const image = product.images.find( image => image === req.body.data.images);
@@ -204,17 +238,19 @@ router.delete('/delete/image/:id', validateToken, async (req, res) => {
 })
 
 router.put('/edit/:id', validateToken, async (req, res) => {
-    const { title, sub_title, category, sub_category, size, price, thumbnail } = req.body.data.product;
+    const { title, sub_title, category, sub_category, size, price, thumbnail, images, active } = req.body.data.product;
     const productData = {
         title: title.toUpperCase(),
         sub_title: sub_title.toUpperCase(),
         category,
         sub_category,
         size: size.toUpperCase(),
-        price,
-        thumbnail
+        price: parseInt(price, 10),
+        thumbnail,
+        images,
+        active: active === 'true' ||  active === true ? true : false
     }
-    await productSchema.findByIdAndUpdate({_id: req.params.id}, productData)
+    await productSchema.replaceOne({_id: req.params.id}, productData)
         .then( product => {
             res.status(201).json({data: product});
         })

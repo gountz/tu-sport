@@ -31,7 +31,11 @@ const productsSchema = new Schema({
         type: String,
         required: true
     },
-    images: [String]
+    images: [String],
+    active: {
+        type: Boolean,
+        default: false
+    }
 });
 
 
